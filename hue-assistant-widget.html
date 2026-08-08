@@ -1,0 +1,843 @@
+<!-- ============================================================
+  HUE Assistant Chat Widget
+  Paste this entire block into a WordPress "Custom HTML" block,
+  or into your theme footer (footer.php / Insert Headers & Footers plugin).
+  Self-contained: no external CSS/JS dependencies.
+============================================================= -->
+
+<div id="hue-widget-root">
+
+  <!-- Collapsed launcher -->
+  <div id="hue-launcher-group" aria-hidden="false">
+    <div id="hue-launcher-bubble">Welcome to Horus University.</div>
+    <img id="hue-launcher-mascot" src="assets/hello.png"/>
+    <button id="hue-launcher" aria-label="Chat with HUE Assistant" aria-expanded="false">
+      Chat with HUE Assistant
+    </button>
+  </div>
+  <!-- Chat window -->
+  <div id="hue-chat" aria-hidden="true">
+
+    <!-- Header -->
+    <div id="hue-header">
+      <div id="hue-header-left">
+        <span id="hue-header-avatar">
+          <img src="assets/icon.png"/>
+               </span>
+        <div>
+          <div id="hue-header-title">HUE Assistant</div>
+          <div id="hue-header-sub">Online · Ready to help</div>
+        </div>
+      </div>
+      <button id="hue-close" aria-label="Close chat">&times;</button>
+    </div>
+
+    <!-- Peeking mascot, tucked at the bottom-right edge of the window -->
+    <img id="hue-peek-mascot-outer" class="hue-peek-outer" src="assets/chat_left.png"/>
+    <!-- Messages -->
+    <div id="hue-messages">
+      <img id="hue-welcome-mascot" src="assets/hello.png"/>
+    </div>
+    
+    <!-- Quick questions (dynamically rendered by JS: main categories -> sub-categories -> answer) -->
+    <div id="hue-quick-questions"></div>
+
+    <!-- Input row temporarily disabled: menu-driven flow only for now.
+    <form id="hue-input-row">
+      <input id="hue-input" type="text" placeholder="Type your question..." autocomplete="off" />
+      <button id="hue-send" type="submit" aria-label="Send message">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 11.5L20 4L12.5 21L10.3 13.2L3 11.5Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </form>
+    -->
+  </div>
+</div>
+
+<style>
+  #hue-widget-root, #hue-widget-root * {
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  /* ---------- Launcher (bubble + mascot + button) ---------- */
+  #hue-launcher-group {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 999998;
+    width: 300px;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    animation: hueLauncherIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes hueLauncherIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  #hue-launcher-bubble {
+    align-self: flex-start;
+    background: #FBF7F1;
+    color: #12213E;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 14px 18px;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(18, 33, 62, 0.18);
+    margin-bottom: -10px;
+    z-index: 2;
+    animation: hueBubbleFloat 3.6s ease-in-out infinite;
+  }
+  @keyframes hueBubbleFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  #hue-launcher-mascot {
+    width: 150px;
+    height: auto;
+    margin-right: -10px;
+    filter: drop-shadow(0 10px 18px rgba(18, 33, 62, 0.25));
+    pointer-events: none;
+  }
+  #hue-launcher {
+    display: block;
+    width: 100%;
+    background: #F4B942;
+    color: #12213E;
+    border: none;
+    border-radius: 999px;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(18, 33, 62, 0.25);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+    margin-top: -6px;
+  }
+  #hue-launcher:hover {
+    transform: translateY(-2px) scale(1.015);
+    box-shadow: 0 10px 28px rgba(18, 33, 62, 0.32);
+  }
+  #hue-launcher:active { transform: translateY(0) scale(0.99); }
+  #hue-widget-root.hue-open #hue-launcher-group { display: none; }
+
+  /* ---------- Chat window ---------- */
+  #hue-chat {
+    position: fixed;
+    right: 50px;
+    bottom: 24px;
+    z-index: 999999;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    height: 560px;
+    max-height: calc(100vh - 48px);
+    background: #FBF7F1;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(18, 33, 62, 0.35);
+    display: none;
+    flex-direction: column;
+    overflow: visible;
+    opacity: 0;
+    transform-origin: bottom right;
+    transform: translateY(24px) scale(0.94);
+    transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #hue-chat > *:not(.hue-peek-outer) { position: relative; z-index: 1; }
+  #hue-chat > #hue-header,
+  #hue-chat > #hue-messages,
+  #hue-chat > #hue-quick-questions,
+  #hue-chat > #hue-input-row {
+    border-radius: 0;
+  }
+  #hue-header { border-radius: 24px 24px 0 0; overflow: hidden; }
+  #hue-messages { overflow-y: auto; scroll-behavior: smooth; }
+  #hue-widget-root.hue-open #hue-chat {
+    display: flex;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  /* Header */
+  #hue-header {
+    background: #12213E;
+    color: #fff;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #hue-header-left { display: flex; align-items: center; gap: 10px; }
+  #hue-header-avatar {
+    background: #1B2E52;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #hue-header-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 20%;
+    transform: scale(1.6);
+  }
+  #hue-header-title { font-size: 14px; font-weight: 700; line-height: 1.3; }
+  #hue-header-sub { font-size: 11.5px; color: #A9B6D6; line-height: 1.3; }
+  #hue-close {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.8;
+    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 50%;
+  }
+  #hue-close:hover { opacity: 1; transform: rotate(90deg); }
+
+  /* Messages */
+  #hue-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+  }
+  #hue-welcome-mascot {
+    width: 150px;
+    height: auto;
+    align-self: center;
+    margin: 4px 0 8px;
+    filter: drop-shadow(0 6px 14px rgba(18,33,62,0.18));
+    animation: hueMascotFloat 3.2s ease-in-out infinite;
+  }
+  @keyframes hueMascotFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  #hue-welcome-mascot.hue-hidden { display: none; }
+
+  /* Peeking mascot tucked at the bottom-right edge of the chat window,
+     positioned relative to #hue-chat so it stays fixed even while messages scroll */
+  #hue-chat .hue-peek-outer {
+    position: absolute !important;
+    right: -17%;
+    bottom: 24px;
+    width: 88px;
+    height: auto;
+    pointer-events: none;
+    z-index: 2;
+    filter: drop-shadow(0 4px 10px rgba(18,33,62,0.3));
+  }
+  .hue-msg {
+    max-width: 82%;
+    font-size: 13.5px;
+    line-height: 1.45;
+    padding: 10px 13px;
+    border-radius: 14px;
+    white-space: pre-line;
+    animation: hueMsgIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes hueMsgIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .hue-msg.bot {
+    align-self: flex-start;
+    background: #fff;
+    color: #1D2A44;
+    border: 1px solid #EDE6DA;
+    border-bottom-left-radius: 4px;
+  }
+  .hue-msg.user {
+    align-self: flex-end;
+    background: #12213E;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  /* Typing indicator */
+  .hue-typing {
+    align-self: flex-start;
+    display: flex;
+    gap: 4px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #EDE6DA;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    animation: hueMsgIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  #hue-chat[dir="rtl"] .hue-typing { align-self: flex-end; border-bottom-left-radius: 14px; border-bottom-right-radius: 4px; }
+  .hue-typing span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #B9AF9A;
+    animation: hueTypingBounce 1.1s infinite ease-in-out;
+  }
+  .hue-typing span:nth-child(2) { animation-delay: 0.15s; }
+  .hue-typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes hueTypingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* RTL support for Arabic mode */
+  #hue-chat[dir="rtl"] { direction: rtl; text-align: right; }
+  #hue-chat[dir="rtl"] .hue-msg.bot { align-self: flex-end; border-bottom-left-radius: 14px; border-bottom-right-radius: 4px; }
+  #hue-chat[dir="rtl"] .hue-msg.user { align-self: flex-start; border-bottom-left-radius: 4px; border-bottom-right-radius: 14px; }
+  #hue-chat[dir="rtl"] .hue-qq-back { text-align: right; }
+
+  /* Quick questions / dynamic menu */
+  #hue-quick-questions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 0 16px 14px;
+    flex-shrink: 0;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  #hue-quick-questions.hue-menu-list {
+    grid-template-columns: 1fr;
+  }
+  .hue-qq {
+    background: #fff;
+    border: 1px solid #E4DACB;
+    color: #12213E;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 9px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    animation: hueQqIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--hue-i, 0) * 45ms);
+  }
+  @keyframes hueQqIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .hue-qq:hover { background: #FBEED2; border-color: #F4B942; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(18,33,62,0.12); }
+  .hue-qq:active { transform: translateY(0); }
+  .hue-qq-back {
+    grid-column: 1 / -1;
+    background: transparent;
+    border: none;
+    color: #7A6A4F;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    padding: 2px 4px 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hue-qq-back:hover { color: #12213E; }
+
+  /* Input row */
+  #hue-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid #EDE6DA;
+    background: #fff;
+    flex-shrink: 0;
+    border-radius: 0 0 24px 24px;
+  }
+  #hue-input {
+    flex: 1;
+    border: 1px solid #E4DACB;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    outline: none;
+    background: #FBF7F1;
+    color: #1D2A44;
+  }
+  #hue-input:focus { border-color: #F4B942; }
+  #hue-send {
+    background: #12213E;
+    color: #F4B942;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  #hue-send:hover { background: #1B2E52; }
+
+  @media (max-width: 480px) {
+    #hue-chat {
+      right: 12px;
+      bottom: 12px;
+      width: calc(100vw - 24px);
+      height: calc(100vh - 24px);
+    }
+    #hue-launcher-group { right: 12px; bottom: 12px; width: 240px; }
+    #hue-launcher-mascot { width: 110px; }
+  }
+</style>
+
+<script>
+(function () {
+  var root = document.getElementById('hue-widget-root');
+  var launcher = document.getElementById('hue-launcher');
+  var closeBtn = document.getElementById('hue-close');
+  var messages = document.getElementById('hue-messages');
+  var quickWrap = document.getElementById('hue-quick-questions');
+  var chat = document.getElementById('hue-chat');
+  var launcherBtn = document.getElementById('hue-launcher');
+
+  var lang = null; // 'en' or 'ar'
+
+  var STR = {
+    en: {
+      askLang: "Hello! Welcome to Horus University. Please choose your language:",
+      greeting: "Hello!\nWelcome to Horus University. I'm HUE Assistant.\nHow can I help you today? Pick a topic below to get started.",
+      back: "\u2190 Back",
+      anythingElse: "Do you need anything else?",
+      yes: "Yes, ask something else",
+      no: "No, that's all",
+      closing: "You're welcome! Thanks for chatting with HUE Assistant. Come back anytime \uD83D\uDC4B",
+      startOver: "Start Over"
+    },
+    ar: {
+      askLang: "أهلاً! مرحباً بك في جامعة حورس. من فضلك اختر اللغة:",
+      greeting: "أهلاً!\nمرحباً بك في جامعة حورس. أنا مساعد HUE.\nكيف يمكنني مساعدتك اليوم؟ اختر موضوعاً من الأسفل للبدء.",
+      back: "\u2190 رجوع",
+      anythingElse: "هل تحتاج إلى أي شيء آخر؟",
+      yes: "نعم، سؤال آخر",
+      no: "لا، هذا كل شيء",
+      closing: "على الرحب والسعة! شكراً لتواصلك مع مساعد HUE. عد إلينا في أي وقت \uD83D\uDC4B",
+      startOver: "البدء من جديد"
+    }
+  };
+
+  function t(key) { return STR[lang || 'en'][key]; }
+
+  var mandatoryFeesDisclaimer = {
+    en: "All listed fees are subject to final approval by the University Council and the Ministry of Higher Education.",
+    ar: "جميع الرسوم المذكورة تخضع للموافقة النهائية من مجلس الجامعة ووزارة التعليم العالي."
+  };
+  var mandatoryGradesDisclaimer = {
+    en: "These rates are for reference only and may change. Please confirm the current official rates with the Admissions Office.",
+    ar: "هذه النسب للإرشاد فقط وقد تتغير. يُرجى التأكد من النسب الرسمية الحالية من مكتب القبول."
+  };
+
+  // ---- Menu tree: each node is either a leaf ("answer") or has "children" (sub-menu) ----
+  // label/answer are { en, ar }
+  var menu = {
+    children: {
+      "admissions": {
+        label: { en: "Admissions & Requirements", ar: "القبول والمتطلبات" },
+        children: {
+          "new_docs": {
+            label: { en: "Required Documents (New Students)", ar: "المستندات المطلوبة (طلاب جدد)" },
+            answer: {
+              en: "New students must submit:\n1. Completed application form (Admission Office or website)\n2. Original high school certificate or equivalent\n3. Foreign certificates: certified by the Ministry of Foreign Affairs\n4. Six personal photos, white background\n5. Computerized birth certificate\n6. Egyptian male students: Form 2 Gond + Form 6 Gond\n7. Non-Egyptian students: copy of passport",
+              ar: "يجب على الطلاب الجدد تقديم:\n1. استمارة التقديم مكتملة (من مكتب القبول أو الموقع)\n2. أصل شهادة الثانوية العامة أو ما يعادلها\n3. الشهادات الأجنبية: مصدقة من وزارة الخارجية\n4. ست صور شخصية بخلفية بيضاء\n5. شهادة ميلاد ممكنة\n6. الطلاب الذكور المصريون: نموذج 2 جند + نموذج 6 جند\n7. الطلاب غير المصريين: صورة جواز السفر"
+            }
+          },
+          "transfer_docs": {
+            label: { en: "Transferred Student Requirements", ar: "متطلبات الطلاب المحولين" },
+            answer: {
+              en: "Transferred students must have completed at least one full academic year elsewhere, and provide:\n1. Official transcript approved by the Ministry of Higher Education\n2. Detailed course specifications with university seal\n3. Students who studied abroad: transcript and course specs certified by the Egyptian Embassy",
+              ar: "يجب أن يكون الطالب المحول قد أتم سنة دراسية كاملة على الأقل بجامعة أخرى، ويقدم:\n1. مفردات درجات رسمية معتمدة من وزارة التعليم العالي\n2. توصيف تفصيلي للمقررات مختوم من الجامعة\n3. الطلاب الذين درسوا بالخارج: يجب تصديق المستندات من السفارة المصرية"
+            }
+          },
+          "grades": {
+            label: { en: "Minimum Admission Grades", ar: "الحد الأدنى لدرجات القبول" },
+            answer: {
+              en: "Reference minimum grades (Egyptian students):\n• Dentistry: 90%\n• Pharmacy: 90%\n• Physical Therapy: 90%\n• Engineering: 80%\n• Business Administration: 60%\n\nNon-Egyptian students:\n• Dentistry, Pharmacy, Physical Therapy, Engineering: 58%\n• Business Administration: 55%\n\n" + mandatoryGradesDisclaimer.en,
+              ar: "الحد الأدنى الإرشادي (طلاب مصريون):\n• طب الأسنان: 90%\n• الصيدلة: 90%\n• العلاج الطبيعي: 90%\n• الهندسة: 80%\n• إدارة الأعمال: 60%\n\nطلاب غير مصريين:\n• طب الأسنان، الصيدلة، العلاج الطبيعي، الهندسة: 58%\n• إدارة الأعمال: 55%\n\n" + mandatoryGradesDisclaimer.ar
+            }
+          },
+          "eligibility": {
+            label: { en: "Eligibility by Certificate", ar: "الأهلية حسب الشهادة" },
+            answer: {
+              en: "Egyptian Thanaweya Amma:\n• Science section: Medicine, Dentistry, Pharmacy, Physical Therapy, Applied Health Science Tech, Business Admin, Fine Arts & Design\n• Mathematics section: Engineering, AI & Information, Business Admin, Fine Arts & Design, Applied Health Science Tech\n• Literary section: Business Admin, Al-Alsun & Translation, Fine Arts & Design, Applied Health Science Tech\n\nInternational/equivalent certificates (IGCSE, American Diploma, IB, etc.) are evaluated per Ministry of Higher Education equivalency rules — the Admissions Office will confirm your exact pathway.",
+              ar: "الثانوية العامة المصرية:\n• الشعبة العلمية: الطب، طب الأسنان، الصيدلة، العلاج الطبيعي، تكنولوجيا العلوم الصحية، إدارة الأعمال، الفنون الجميلة والتصميم\n• شعبة الرياضة: الهندسة، الذكاء الاصطناعي والمعلومات، إدارة الأعمال، الفنون الجميلة والتصميم، تكنولوجيا العلوم الصحية\n• الشعبة الأدبية: إدارة الأعمال، الألسن والترجمة، الفنون الجميلة والتصميم، تكنولوجيا العلوم الصحية\n\nالشهادات الدولية أو المعادلة (IGCSE، الدبلومة الأمريكية، البكالوريا الدولية...) تُقيَّم وفق قواعد المعادلة الخاصة بوزارة التعليم العالي — سيؤكد مكتب القبول المسار الدقيق المناسب لك."
+            }
+          },
+          "apply": {
+            label: { en: "How to Apply", ar: "طريقة التقديم" },
+            answer: {
+              en: "Admissions are officially open! Apply online via the official portal: https://digital.horus.edu.eg/admission/apply\nAdmission is subject to approval from the Supreme Council for Private Universities.",
+              ar: "باب القبول مفتوح رسمياً! يمكنك التقديم أونلاين عبر البوابة الرسمية: https://digital.horus.edu.eg/admission/apply\nالقبول يخضع لموافقة المجلس الأعلى للجامعات الخاصة."
+            }
+          }
+        }
+      },
+      "tuition": {
+        label: { en: "Tuition Fees", ar: "المصروفات الدراسية" },
+        children: {
+          "t_medicine": { label: { en: "Faculty of Medicine", ar: "كلية الطب البشري" }, answer: { en: "Faculty of Human Medicine: 270,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية الطب البشري: 270,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_dentistry": { label: { en: "Faculty of Dentistry", ar: "كلية طب الأسنان" }, answer: { en: "Faculty of Dentistry: 190,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية طب الأسنان: 190,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_pharmacy": { label: { en: "Faculty of Pharmacy", ar: "كلية الصيدلة" }, answer: { en: "Faculty of Pharmacy (Clinical): 160,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية الصيدلة (الإكلينيكية): 160,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_pt": { label: { en: "Faculty of Physical Therapy", ar: "كلية العلاج الطبيعي" }, answer: { en: "Faculty of Physical Therapy: 140,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية العلاج الطبيعي: 140,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_ahst": { label: { en: "Applied Health Science Tech.", ar: "تكنولوجيا العلوم الصحية التطبيقية" }, answer: { en: "Faculty of Applied Health Science Technology: 80,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية تكنولوجيا العلوم الصحية التطبيقية: 80,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_eng": { label: { en: "Faculty of Engineering", ar: "كلية الهندسة" }, answer: { en: "Faculty of Engineering: 80,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية الهندسة: 80,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_ai": { label: { en: "Faculty of AI & Information", ar: "كلية الذكاء الاصطناعي والمعلومات" }, answer: { en: "Faculty of Artificial Intelligence & Information: 90,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية الذكاء الاصطناعي والمعلومات: 90,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_arts": { label: { en: "Faculty of Fine Arts & Design", ar: "كلية الفنون الجميلة والتصميم" }, answer: { en: "Faculty of Fine Arts & Design: 60,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية الفنون الجميلة والتصميم: 60,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_alsun": { label: { en: "Faculty of Al-Alsun & Translation", ar: "كلية الألسن والترجمة" }, answer: { en: "Faculty of Al-Alsun & Translation: 60,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية الألسن والترجمة: 60,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_business": { label: { en: "Faculty of Business Administration", ar: "كلية إدارة الأعمال" }, answer: { en: "Faculty of Business Administration: 50,000 EGP / year (2026/2027).\n\n" + mandatoryFeesDisclaimer.en, ar: "كلية إدارة الأعمال: 50,000 جنيه مصري / سنوياً (2026/2027).\n\n" + mandatoryFeesDisclaimer.ar } },
+          "t_discounts": {
+            label: { en: "Discounts & Financial Aid", ar: "الخصومات والدعم المالي" },
+            answer: {
+              en: "Maximum combined discount: up to 15%.\n• Early registration: 10%\n• Academic/sports excellence & social cases: 10–15%\n• 10% for children/relatives of: university professors, martyrs, military, police, judiciary, syndicate members, or siblings already enrolled\n\nDiscounts remain valid throughout your study years.\n\n" + mandatoryFeesDisclaimer.en,
+              ar: "الحد الأقصى للخصم المجمع: حتى 15%.\n• الحجز المبكر: 10%\n• التفوق العلمي/الرياضي والحالات الاجتماعية: 10-15%\n• 10% لأبناء/أقارب: أساتذة الجامعات، الشهداء، القوات المسلحة، الشرطة، الهيئات القضائية، أعضاء النقابات، أو الأشقاء الملتحقين بالفعل\n\nتستمر الخصومات طوال سنوات الدراسة.\n\n" + mandatoryFeesDisclaimer.ar
+            }
+          }
+        }
+      },
+      "faculties": {
+        label: { en: "Faculties & Programs", ar: "الكليات والبرامج" },
+        children: {
+          "f_medicine": {
+            label: { en: "Faculty of Medicine", ar: "كلية الطب البشري" },
+            children: {
+              "d1": { label: { en: "Medical Education", ar: "التعليم الطبي" }, answer: { en: "Department of Medical Education, Faculty of Medicine.", ar: "قسم التعليم الطبي، كلية الطب البشري." } },
+              "d2": { label: { en: "Histology & Cell Biology", ar: "الهستولوجي وبيولوجيا الخلية" }, answer: { en: "Department of Histology and Cell Biology, Faculty of Medicine.", ar: "قسم الهستولوجي وبيولوجيا الخلية، كلية الطب البشري." } },
+              "d3": { label: { en: "Clinical Pharmacology", ar: "الفارماكولوجيا الإكلينيكية" }, answer: { en: "Department of Clinical Pharmacology, Faculty of Medicine.", ar: "قسم الفارماكولوجيا الإكلينيكية، كلية الطب البشري." } },
+              "d4": { label: { en: "Human Anatomy & Embryology", ar: "التشريح الآدمي والأجنة" }, answer: { en: "Department of Human Anatomy and Embryology, Faculty of Medicine.", ar: "قسم التشريح الآدمي والأجنة، كلية الطب البشري." } },
+              "d5": { label: { en: "Medical Physiology", ar: "الفسيولوجيا الطبية" }, answer: { en: "Department of Medical Physiology, Faculty of Medicine.", ar: "قسم الفسيولوجيا الطبية، كلية الطب البشري." } },
+              "d6": { label: { en: "Microbiology, Immunology & Parasitology", ar: "الميكروبيولوجيا والمناعة والطفيليات" }, answer: { en: "Department of Medical Microbiology, Immunology and Parasitology, Faculty of Medicine.", ar: "قسم الميكروبيولوجيا الطبية والمناعة والطفيليات، كلية الطب البشري." } },
+              "d7": { label: { en: "Forensic Medicine & Toxicology", ar: "الطب الشرعي والسموم" }, answer: { en: "Department of Forensic Medicine and Clinical Toxicology, Faculty of Medicine.", ar: "قسم الطب الشرعي والسموم الإكلينيكية، كلية الطب البشري." } },
+              "d8": { label: { en: "Community Medicine & Public Health", ar: "طب المجتمع والصحة العامة" }, answer: { en: "Department of Community Medicine and Public Health, Faculty of Medicine.", ar: "قسم طب المجتمع والصحة العامة، كلية الطب البشري." } },
+              "d9": { label: { en: "Biochemistry", ar: "الكيمياء الحيوية" }, answer: { en: "Department of Biochemistry, Faculty of Medicine.", ar: "قسم الكيمياء الحيوية، كلية الطب البشري." } },
+              "d10": { label: { en: "Pathology", ar: "الباثولوجي" }, answer: { en: "Department of Pathology, Faculty of Medicine.", ar: "قسم الباثولوجي، كلية الطب البشري." } },
+              "d11": { label: { en: "Ophthalmology", ar: "طب وجراحة العيون" }, answer: { en: "Department of Ophthalmology, Faculty of Medicine.", ar: "قسم طب وجراحة العيون، كلية الطب البشري." } },
+              "d12": { label: { en: "Obstetrics & Gynaecology", ar: "النساء والتوليد" }, answer: { en: "Department of Obstetrics and Gynaecology, Faculty of Medicine.", ar: "قسم النساء والتوليد، كلية الطب البشري." } }
+            }
+          },
+          "f_dentistry": {
+            label: { en: "Faculty of Dentistry", ar: "كلية طب الأسنان" },
+            children: {
+              "d1": { label: { en: "General & Basic Dental Science", ar: "علوم الأسنان العامة والأساسية" }, answer: { en: "Department of General and Basic Dental Science, Faculty of Dentistry.", ar: "قسم علوم الأسنان العامة والأساسية، كلية طب الأسنان." } },
+              "d2": { label: { en: "Basic & Clinical Medical Sciences", ar: "العلوم الطبية الأساسية والإكلينيكية" }, answer: { en: "Department of Basic and Clinical Medical Sciences, Faculty of Dentistry.", ar: "قسم العلوم الطبية الأساسية والإكلينيكية، كلية طب الأسنان." } },
+              "d3": { label: { en: "Oral & Maxillofacial Surgery", ar: "جراحة الفم والوجه والفكين" }, answer: { en: "Department of Oral and Maxillofacial Surgery, Faculty of Dentistry.", ar: "قسم جراحة الفم والوجه والفكين، كلية طب الأسنان." } },
+              "d4": { label: { en: "Orthodontics", ar: "تقويم الأسنان" }, answer: { en: "Department of Orthodontics, Faculty of Dentistry.", ar: "قسم تقويم الأسنان، كلية طب الأسنان." } },
+              "d5": { label: { en: "Periodontology & Oral Medicine", ar: "أمراض اللثة وطب الفم" }, answer: { en: "Department of Periodontology and Oral Medicine, Faculty of Dentistry.", ar: "قسم أمراض اللثة وطب الفم، كلية طب الأسنان." } },
+              "d6": { label: { en: "Prosthodontics", ar: "التركيبات السنية" }, answer: { en: "Department of Prosthodontics, Faculty of Dentistry.", ar: "قسم التركيبات السنية، كلية طب الأسنان." } },
+              "d7": { label: { en: "Restorative Dentistry", ar: "علاج الأسنان الترميمي" }, answer: { en: "Department of Restorative Dentistry, Faculty of Dentistry.", ar: "قسم علاج الأسنان الترميمي، كلية طب الأسنان." } }
+            }
+          },
+          "f_pharmacy": {
+            label: { en: "Faculty of Pharmacy", ar: "كلية الصيدلة" },
+            children: {
+              "d1": { label: { en: "Pharmaceutical Chemistry", ar: "الكيمياء الصيدلية" }, answer: { en: "Department of Pharmaceutical Chemistry, Faculty of Pharmacy.", ar: "قسم الكيمياء الصيدلية، كلية الصيدلة." } },
+              "d2": { label: { en: "Pharmacology & Biochemistry", ar: "الفارماكولوجي والكيمياء الحيوية" }, answer: { en: "Department of Pharmacology & Biochemistry, Faculty of Pharmacy.", ar: "قسم الفارماكولوجي والكيمياء الحيوية، كلية الصيدلة." } },
+              "d3": { label: { en: "Pharmacognosy", ar: "العقاقير" }, answer: { en: "Department of Pharmacognosy, Faculty of Pharmacy.", ar: "قسم العقاقير، كلية الصيدلة." } },
+              "d4": { label: { en: "Microbiology & Immunology", ar: "الميكروبيولوجيا والمناعة" }, answer: { en: "Department of Microbiology & Immunology, Faculty of Pharmacy.", ar: "قسم الميكروبيولوجيا والمناعة، كلية الصيدلة." } },
+              "d5": { label: { en: "Pharmaceutical Technology", ar: "الصناعات الصيدلية" }, answer: { en: "Department of Pharmaceutical Technology, Faculty of Pharmacy.", ar: "قسم الصناعات الصيدلية، كلية الصيدلة." } },
+              "d6": { label: { en: "Pharmacy Practice", ar: "ممارسة الصيدلة" }, answer: { en: "Department of Pharmacy Practice, Faculty of Pharmacy.", ar: "قسم ممارسة الصيدلة، كلية الصيدلة." } }
+            }
+          },
+          "f_pt": {
+            label: { en: "Faculty of Physical Therapy", ar: "كلية العلاج الطبيعي" },
+            children: {
+              "d1": { label: { en: "Basic Science", ar: "العلوم الأساسية" }, answer: { en: "Department of Basic Science, Faculty of Physical Therapy.", ar: "قسم العلوم الأساسية، كلية العلاج الطبيعي." } },
+              "d2": { label: { en: "Biomechanics", ar: "الميكانيكا الحيوية" }, answer: { en: "Department of Biomechanics, Faculty of Physical Therapy.", ar: "قسم الميكانيكا الحيوية، كلية العلاج الطبيعي." } },
+              "d3": { label: { en: "Internal Medicine & Geriatrics PT", ar: "علاج طبيعي للباطنة والشيخوخة" }, answer: { en: "Department of Physical Therapy for Internal Medicine and Geriatrics.", ar: "قسم العلاج الطبيعي للباطنة والشيخوخة." } },
+              "d4": { label: { en: "Women's Health PT", ar: "علاج طبيعي لصحة المرأة" }, answer: { en: "Department of Physical Therapy for Women's Health.", ar: "قسم العلاج الطبيعي لصحة المرأة." } },
+              "d5": { label: { en: "Surgery & Integumentary PT", ar: "علاج طبيعي للجراحة والجلد" }, answer: { en: "Department of Physical Therapy for Surgery and Integumentary.", ar: "قسم العلاج الطبيعي للجراحة والجلد." } },
+              "d6": { label: { en: "Orthopaedic Surgery PT", ar: "علاج طبيعي لجراحة العظام" }, answer: { en: "Department of Physical Therapy for Orthopaedic Surgery.", ar: "قسم العلاج الطبيعي لجراحة العظام." } },
+              "d7": { label: { en: "Neurology & Neurosurgery PT", ar: "علاج طبيعي للمخ والأعصاب" }, answer: { en: "Department of Physical Therapy for Neurology and Neurosurgery.", ar: "قسم العلاج الطبيعي للمخ والأعصاب وجراحتها." } },
+              "d8": { label: { en: "Pediatric Physical Therapy", ar: "علاج طبيعي للأطفال" }, answer: { en: "Pediatric Physical Therapy, Faculty of Physical Therapy — ideal if you're interested in child rehabilitation.", ar: "قسم العلاج الطبيعي للأطفال — مثالي إذا كنت مهتماً بتأهيل الأطفال." } }
+            }
+          },
+          "f_eng": {
+            label: { en: "Faculty of Engineering", ar: "كلية الهندسة" },
+            children: {
+              "d1": { label: { en: "Artificial Intelligence", ar: "الذكاء الاصطناعي" }, answer: { en: "Department of Artificial Intelligence, Faculty of Engineering.", ar: "قسم الذكاء الاصطناعي، كلية الهندسة." } },
+              "d2": { label: { en: "Basic Science", ar: "العلوم الأساسية" }, answer: { en: "Department of Basic Science, Faculty of Engineering (all engineering students complete Level 0 here).", ar: "قسم العلوم الأساسية، كلية الهندسة (يجتاز جميع طلاب الهندسة المستوى صفر هنا)." } },
+              "d3": { label: { en: "Civil Engineering", ar: "الهندسة المدنية" }, answer: { en: "Department of Civil Engineering, Faculty of Engineering.", ar: "قسم الهندسة المدنية، كلية الهندسة." } },
+              "d4": { label: { en: "Electrical Engineering", ar: "الهندسة الكهربائية" }, answer: { en: "Department of Electrical Engineering, Faculty of Engineering.", ar: "قسم الهندسة الكهربائية، كلية الهندسة." } },
+              "d5": { label: { en: "Biomedical Engineering", ar: "الهندسة الطبية الحيوية" }, answer: { en: "Department of Biomedical Engineering, Faculty of Engineering — great fit for medical devices/healthcare tech interests.", ar: "قسم الهندسة الطبية الحيوية — مناسب جداً لمن يهتم بالأجهزة الطبية والتكنولوجيا الصحية." } },
+              "d6": { label: { en: "Architecture Engineering", ar: "الهندسة المعمارية" }, answer: { en: "Department of Architecture Engineering, Faculty of Engineering.", ar: "قسم الهندسة المعمارية، كلية الهندسة." } },
+              "d7": { label: { en: "Computer & Systems Engineering", ar: "هندسة الحاسبات والنظم" }, answer: { en: "Department of Computer and Systems Engineering, Faculty of Engineering — great fit for programming/AI interests.", ar: "قسم هندسة الحاسبات والنظم — مناسب جداً لمن يهتم بالبرمجة والذكاء الاصطناعي." } },
+              "d8": { label: { en: "Sustainable Architecture Eng.", ar: "الهندسة المعمارية المستدامة" }, answer: { en: "Department of Sustainable Architecture Engineering, Faculty of Engineering.", ar: "قسم الهندسة المعمارية المستدامة، كلية الهندسة." } },
+              "d9": { label: { en: "Mechanical Eng. (Mechatronics)", ar: "الهندسة الميكانيكية (ميكاترونكس)" }, answer: { en: "Department of Mechanical Engineering (Mechatronics), Faculty of Engineering — great fit for robotics/smart systems interests.", ar: "قسم الهندسة الميكانيكية (ميكاترونكس) — مناسب جداً لمن يهتم بالروبوتات والأنظمة الذكية." } }
+            }
+          },
+          "f_ahst": {
+            label: { en: "Applied Health Science Tech.", ar: "تكنولوجيا العلوم الصحية التطبيقية" },
+            answer: { en: "Faculty of Applied Health Science Technology. For detailed department options, please contact the Admissions Office.", ar: "كلية تكنولوجيا العلوم الصحية التطبيقية. للتفاصيل الكاملة عن الأقسام، يُرجى التواصل مع مكتب القبول." }
+          },
+          "f_ai": {
+            label: { en: "Faculty of AI & Information", ar: "كلية الذكاء الاصطناعي والمعلومات" },
+            answer: { en: "Faculty of Artificial Intelligence and Information — a strong choice if you're passionate about programming and technology. For detailed department options, please contact the Admissions Office.", ar: "كلية الذكاء الاصطناعي والمعلومات — خيار ممتاز إذا كنت شغوفاً بالبرمجة والتكنولوجيا. للتفاصيل الكاملة عن الأقسام، يُرجى التواصل مع مكتب القبول." }
+          },
+          "f_business": {
+            label: { en: "Faculty of Business Administration", ar: "كلية إدارة الأعمال" },
+            children: {
+              "d1": { label: { en: "Management", ar: "إدارة الأعمال" }, answer: { en: "Department of Management, Faculty of Business Administration — great fit for leadership/entrepreneurship interests.", ar: "قسم إدارة الأعمال — مناسب جداً لمن يهتم بالقيادة وريادة الأعمال." } },
+              "d2": { label: { en: "Accounting", ar: "المحاسبة" }, answer: { en: "Department of Accounting, Faculty of Business Administration — great fit for finance/banking interests.", ar: "قسم المحاسبة — مناسب جداً لمن يهتم بالمالية والمصرفية." } },
+              "d3": { label: { en: "Quantitative Methods", ar: "الأساليب الكمية" }, answer: { en: "Department of Quantitative Methods, Faculty of Business Administration.", ar: "قسم الأساليب الكمية، كلية إدارة الأعمال." } },
+              "d4": { label: { en: "Economics", ar: "الاقتصاد" }, answer: { en: "Department of Economics, Faculty of Business Administration — great fit for finance/banking interests.", ar: "قسم الاقتصاد — مناسب جداً لمن يهتم بالمالية والمصرفية." } }
+            }
+          },
+          "f_alsun": {
+            label: { en: "Faculty of Al-Alsun & Translation", ar: "كلية الألسن والترجمة" },
+            answer: { en: "Faculty of Al-Alsun and Translation. For detailed department options, please contact the Admissions Office.", ar: "كلية الألسن والترجمة. للتفاصيل الكاملة عن الأقسام، يُرجى التواصل مع مكتب القبول." }
+          },
+          "f_arts": {
+            label: { en: "Faculty of Fine Arts & Design", ar: "كلية الفنون الجميلة والتصميم" },
+            answer: { en: "Faculty of Fine Arts and Design. For detailed department options, please contact the Admissions Office.", ar: "كلية الفنون الجميلة والتصميم. للتفاصيل الكاملة عن الأقسام، يُرجى التواصل مع مكتب القبول." }
+          }
+        }
+      },
+      "campus": {
+        label: { en: "Campus & Location", ar: "الحرم الجامعي والموقع" },
+        answer: {
+          en: "Horus University is located in New Damietta, offering a modern campus with advanced laboratories, clinical and practical training facilities, and a strong, supportive academic environment.",
+          ar: "تقع جامعة حورس في دمياط الجديدة، وتضم حرماً جامعياً حديثاً بمعامل متطورة ومرافق تدريب إكلينيكي وعملي، وبيئة أكاديمية داعمة ومتميزة."
+        }
+      },
+      "contact": {
+        label: { en: "Contact Us", ar: "تواصل معنا" },
+        answer: {
+          en: "You can reach the Admissions Office through the official university website, or visit us on campus in New Damietta. For document/registration questions, our Registrar Office can help; for payments, our Financial Department can help.",
+          ar: "يمكنك التواصل مع مكتب القبول عبر الموقع الرسمي للجامعة، أو زيارتنا في الحرم الجامعي بدمياط الجديدة. لأسئلة المستندات والتسجيل، مكتب شؤون الطلاب في خدمتك؛ ولأسئلة الدفع، الإدارة المالية في خدمتك."
+        }
+      },
+      "faq": {
+        label: { en: "Frequently Asked Questions", ar: "الأسئلة الشائعة" },
+        children: {
+          "faq_discounts": {
+            label: { en: "Are there discounts?", ar: "هل يوجد خصومات؟" },
+            answer: { en: "Yes — up to 15% combined maximum, including early registration (10%) and academic/sports excellence or social-case discounts (10–15%). See Tuition Fees > Discounts & Financial Aid for details.", ar: "نعم — حتى 15% كحد أقصى مجمع، ويشمل ذلك الحجز المبكر (10%) وخصومات التفوق العلمي/الرياضي أو الحالات الاجتماعية (10-15%). راجع المصروفات الدراسية > الخصومات والدعم المالي للتفاصيل." }
+          },
+          "faq_transfer": {
+            label: { en: "Can I transfer from another university?", ar: "هل يمكنني التحويل من جامعة أخرى؟" },
+            answer: { en: "Yes, if you've completed at least one full academic year elsewhere. See Admissions > Transferred Student Requirements for the document checklist.", ar: "نعم، بشرط إتمام سنة دراسية كاملة على الأقل بجامعة أخرى. راجع القبول والمتطلبات > متطلبات الطلاب المحولين لقائمة المستندات." }
+          },
+          "faq_international": {
+            label: { en: "I have an international certificate", ar: "لدي شهادة دولية" },
+            answer: { en: "IGCSE, American Diploma, IB, and other accredited certificates are evaluated per Ministry of Higher Education equivalency rules. The Admissions Office will confirm your exact eligible pathway — nothing is guaranteed before official document review.", ar: "يتم تقييم شهادات IGCSE والدبلومة الأمريكية والبكالوريا الدولية وغيرها من الشهادات المعتمدة وفق قواعد المعادلة الخاصة بوزارة التعليم العالي. سيؤكد مكتب القبول المسار الدقيق المناسب لك — لا يوجد ضمان قبل مراجعة المستندات رسمياً." }
+          },
+          "faq_escalate_financial": {
+            label: { en: "I have a payment/installment issue", ar: "لدي مشكلة في الدفع/الأقساط" },
+            answer: { en: "Please contact the Financial Department directly for payment tracking or installment issues.", ar: "يُرجى التواصل مباشرة مع الإدارة المالية لمتابعة المدفوعات أو مشاكل الأقساط." }
+          },
+          "faq_escalate_docs": {
+            label: { en: "I need my transcript/application status", ar: "أحتاج مفردات درجاتي/حالة طلبي" },
+            answer: { en: "Please contact the Registrar Office for transcripts, application status, or admissions files.", ar: "يُرجى التواصل مع مكتب شؤون الطلاب للحصول على مفردات الدرجات أو حالة الطلب أو ملفات القبول." }
+          }
+        }
+      }
+    }
+  };
+
+  var menuPath = []; // stack of node keys
+
+  function currentNode() {
+    var node = menu;
+    for (var i = 0; i < menuPath.length; i++) node = node.children[menuPath[i]];
+    return node;
+  }
+
+  function scrollToBottom() {
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addMessage(text, from) {
+    var el = document.createElement('div');
+    el.className = 'hue-msg ' + from;
+    el.textContent = text;
+    messages.appendChild(el);
+    scrollToBottom();
+  }
+
+  function clearQuickWrap() {
+    quickWrap.innerHTML = '';
+    quickWrap.classList.remove('hue-menu-list');
+  }
+
+  function makeButton(label, className, onClick, index) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = className;
+    btn.textContent = label;
+    if (typeof index === 'number') btn.style.setProperty('--hue-i', index);
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  function appendButtons(buttons) {
+    buttons.forEach(function (btn, i) {
+      btn.style.setProperty('--hue-i', i);
+      quickWrap.appendChild(btn);
+    });
+  }
+
+  var typingEl = null;
+  function showTyping() {
+    typingEl = document.createElement('div');
+    typingEl.className = 'hue-typing';
+    typingEl.innerHTML = '<span></span><span></span><span></span>';
+    messages.appendChild(typingEl);
+    scrollToBottom();
+  }
+  function hideTyping() {
+    if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+    typingEl = null;
+  }
+  function botReply(text, callback) {
+    showTyping();
+    setTimeout(function () {
+      hideTyping();
+      addMessage(text, 'bot');
+      if (callback) callback();
+    }, 550);
+  }
+
+  // ---- Step 0: language selection ----
+  function askLanguage() {
+    botReply(STR.en.askLang + ' / ' + STR.ar.askLang, function () {
+      clearQuickWrap();
+      appendButtons([
+        makeButton('English', 'hue-qq', function () { lang = 'en'; onLanguageChosen(); }),
+        makeButton('العربية', 'hue-qq', function () { lang = 'ar'; onLanguageChosen(); })
+      ]);
+    });
+  }
+
+  function onLanguageChosen() {
+    addMessage(lang === 'ar' ? 'العربية' : 'English', 'user');
+    document.getElementById('hue-chat').setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+    botReply(t('greeting'), function () {
+      setTimeout(renderMenu, 200);
+    });
+  }
+
+  // ---- Menu rendering ----
+  function renderMenu() {
+    var node = currentNode();
+    clearQuickWrap();
+
+    if (!node.children) {
+      menuPath = [];
+      node = menu;
+    }
+
+    var keys = Object.keys(node.children);
+    var isSubLevel = menuPath.length > 0;
+    quickWrap.classList.toggle('hue-menu-list', keys.length > 6);
+
+    var buttons = [];
+    if (isSubLevel) {
+      buttons.push(makeButton(t('back'), 'hue-qq-back', function () {
+        menuPath.pop();
+        renderMenu();
+      }));
+    }
+    keys.forEach(function (key) {
+      var child = node.children[key];
+      buttons.push(makeButton(child.label[lang], 'hue-qq', function () {
+        handleSelect(key, child);
+      }));
+    });
+    appendButtons(buttons);
+  }
+
+  function handleSelect(key, child) {
+    addMessage(child.label[lang], 'user');
+    if (child.children) {
+      menuPath.push(key);
+      setTimeout(renderMenu, 200);
+    } else {
+      setTimeout(function () {
+        botReply(child.answer[lang], function () {
+          setTimeout(askAnythingElse, 200);
+        });
+      }, 250);
+    }
+  }
+
+  // ---- "Anything else?" prompt after every answer ----
+  function askAnythingElse() {
+    addMessage(t('anythingElse'), 'bot');
+    clearQuickWrap();
+    appendButtons([
+      makeButton(t('yes'), 'hue-qq', function () {
+        addMessage(t('yes'), 'user');
+        setTimeout(renderMenu, 250);
+      }),
+      makeButton(t('no'), 'hue-qq', function () {
+        addMessage(t('no'), 'user');
+        setTimeout(showClosing, 250);
+      })
+    ]);
+  }
+
+  function showClosing() {
+    addMessage(t('closing'), 'bot');
+    clearQuickWrap();
+    appendButtons([
+      makeButton(t('startOver'), 'hue-qq', function () {
+        menuPath = [];
+        addMessage(t('startOver'), 'user');
+        setTimeout(renderMenu, 250);
+      })
+    ]);
+  }
+
+  var greeted = false;
+
+  function greet() {
+    if (greeted) return;
+    greeted = true;
+    askLanguage();
+  }
+
+  function openChat() {
+    root.classList.add('hue-open');
+    launcherBtn.setAttribute('aria-expanded', 'true');
+    chat.setAttribute('aria-hidden', 'false');
+    greet();
+  }
+
+  function closeChat() {
+    root.classList.remove('hue-open');
+    launcherBtn.setAttribute('aria-expanded', 'false');
+    chat.setAttribute('aria-hidden', 'true');
+  }
+
+  launcher.addEventListener('click', openChat);
+  closeBtn.addEventListener('click', closeChat);
+
+  // Optional: also open the chat when any element on the page has
+  // the class "hue-hero-trigger" (e.g. a button in your hero section).
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.hue-hero-trigger')) {
+      e.preventDefault();
+      openChat();
+    }
+  });
+})();
+</script>
