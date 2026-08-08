@@ -1,0 +1,36 @@
+<!-- ============================================================
+  HUE Assistant Chat Widget — iframe embed
+  Loads the widget from your external host and overlays it in the
+  bottom-right corner of every page, on top of your WordPress content.
+  Paste this into "Insert Headers and Footers" (Footer) or a Custom HTML block.
+============================================================= -->
+<style>
+  #hue-widget-frame {
+    position: fixed;
+    z-index: 999999;
+    right: 0;
+    bottom: 0;
+    width: 440px;
+    height: 640px;
+    max-width: 100vw;
+    max-height: 100vh;
+    border: none;
+    background: transparent;
+    /* pointer-events auto only where the widget actually draws something;
+       the iframe itself is small enough (corner-anchored) that this is fine */
+  }
+  @media (max-width: 480px) {
+    #hue-widget-frame {
+      width: 100vw;
+      height: 100vh;
+    }
+  }
+</style>
+
+<iframe
+  id="hue-widget-frame"
+  src="https://hue-engineering.com/wp-content/uploads/horus_chat/index.html"
+  title="HUE Assistant Chat"
+  allowtransparency="true"
+  scrolling="no"
+></iframe>
